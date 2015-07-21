@@ -127,12 +127,6 @@ DHDCFLAGS += -DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT
 # Disable to delay link down event
 DHDCFLAGS += -DDISABLE_BCN_DLY
 
-##############################
-# Android Platform Definition
-##############################
-ABSOLUTE_BCM_SRC_DIR :=	$(WLAN_ROOT)/bcmdhd
-BCM_SRC_DIR :=	../bcmdhd
-
 ###############################
 # Android M
 ###############################
@@ -160,7 +154,7 @@ ifneq ($(CONFIG_BCM4339),)
 DHDCFLAGS += -DWL_VENDOR_EXT_SUPPORT
 
 # Extra file list for Lollipop
-ANDROID_OFILES := $(BCM_SRC_DIR)/wl_cfgvendor.o
+ANDROID_OFILES := wl_cfgvendor.o
 endif
 
 ifneq ($(CONFIG_BCM43455),)
@@ -182,7 +176,7 @@ DHDCFLAGS += -DANQPO_SUPPORT
 
 
 # Extra file list for Android M, SOMC
-ANDROID_OFILES := $(BCM_SRC_DIR)/wl_cfgvendor.o $(BCM_SRC_DIR)/dhd_rtt.o $(BCM_SRC_DIR)/bcmxtlv.o
+ANDROID_OFILES := wl_cfgvendor.o dhd_rtt.o bcmxtlv.o
 endif
 
 ifneq ($(CONFIG_BCM4354),)
@@ -389,48 +383,47 @@ DHDCFLAGS += -DENABLE_80211AC_FOR_UA
 
 #EXTRA_LDFLAGS += --strip-debug
 EXTRA_CFLAGS += $(DHDCFLAGS) -DDHD_DEBUG
-EXTRA_CFLAGS += -DSRCBASE=\"$(BCM_SRC_DIR)\"
-EXTRA_CFLAGS += -I$(ABSOLUTE_BCM_SRC_DIR)/include/ \
-		-I$(ABSOLUTE_BCM_SRC_DIR)/ \
-		-I$(WLAN_ROOT)/../common/
+EXTRA_CFLAGS += -DSRCBASE=\"$(src)\"
+EXTRA_CFLAGS += -I$(src)/include/ -I$(src)/
+KBUILD_CFLAGS += -I$(LINUXDIR)/include -I$(shell pwd)
 
 MODNAME := wlan
 
-DHDOFILES := $(BCM_SRC_DIR)/bcmsdh.o \
-		$(BCM_SRC_DIR)/bcmsdh_linux.o \
-		$(BCM_SRC_DIR)/bcmsdh_sdmmc.o \
-		$(BCM_SRC_DIR)/bcmsdh_sdmmc_linux.o \
-		$(BCM_SRC_DIR)/dhd_cdc.o \
-		$(BCM_SRC_DIR)/dhd_cfg80211.o \
-		$(BCM_SRC_DIR)/dhd_common.o \
-		$(BCM_SRC_DIR)/dhd_custom_gpio.o \
-		$(BCM_SRC_DIR)/dhd_ip.o \
-		$(BCM_SRC_DIR)/dhd_linux.o \
-		$(BCM_SRC_DIR)/dhd_linux_sched.o \
-		$(BCM_SRC_DIR)/dhd_sdio.o \
-		$(BCM_SRC_DIR)/dhd_pno.o \
-		$(BCM_SRC_DIR)/dhd_wlfc.o \
-		$(BCM_SRC_DIR)/dhd_linux_wq.o \
-		$(BCM_SRC_DIR)/aiutils.o \
-		$(BCM_SRC_DIR)/bcmevent.o \
-		$(BCM_SRC_DIR)/bcmutils.o \
-		$(BCM_SRC_DIR)/bcmwifi_channels.o \
-		$(BCM_SRC_DIR)/hndpmu.o \
-		$(BCM_SRC_DIR)/linux_osl.o \
-		$(BCM_SRC_DIR)/sbutils.o \
-		$(BCM_SRC_DIR)/siutils.o \
-		$(BCM_SRC_DIR)/wldev_common.o \
-		$(BCM_SRC_DIR)/wl_cfg_btcoex.o \
-		$(BCM_SRC_DIR)/wl_android.o \
-		$(BCM_SRC_DIR)/wl_cfg80211.o \
-		$(BCM_SRC_DIR)/wl_cfgp2p.o \
-		$(BCM_SRC_DIR)/wl_linux_mon.o \
-		$(BCM_SRC_DIR)/dhd_linux_platdev.o \
-		../../common/dhd_somc_custom.o
+DHDOFILES := bcmsdh.o \
+		bcmsdh_linux.o \
+		bcmsdh_sdmmc.o \
+		bcmsdh_sdmmc_linux.o \
+		dhd_cdc.o \
+		dhd_cfg80211.o \
+		dhd_common.o \
+		dhd_custom_gpio.o \
+		dhd_ip.o \
+		dhd_linux.o \
+		dhd_linux_sched.o \
+		dhd_sdio.o \
+		dhd_pno.o \
+		dhd_wlfc.o \
+		dhd_linux_wq.o \
+		aiutils.o \
+		bcmevent.o \
+		bcmutils.o \
+		bcmwifi_channels.o \
+		hndpmu.o \
+		linux_osl.o \
+		sbutils.o \
+		siutils.o \
+		wldev_common.o \
+		wl_cfg_btcoex.o \
+		wl_android.o \
+		wl_cfg80211.o \
+		wl_cfgp2p.o \
+		wl_linux_mon.o \
+		dhd_linux_platdev.o \
+		dhd_somc_custom.o
 
 DHDOFILES += $(ANDROID_OFILES)
 
 # Module information used by KBuild framework
 obj-$(CONFIG_BCMDHD) += $(MODNAME).o
 
-$(MODNAME)-y := $(DHDOFILES)
+$(MODNAME)-objs := $(DHDOFILES)
