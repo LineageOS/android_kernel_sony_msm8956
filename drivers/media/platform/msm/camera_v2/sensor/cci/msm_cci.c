@@ -9,6 +9,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #include <linux/delay.h>
 #include <linux/clk.h>
@@ -390,6 +395,7 @@ static int32_t msm_cci_wait_report_cmd(struct cci_device *cci_dev,
 	return msm_cci_wait(cci_dev, master, queue);
 }
 
+#if !defined(CONFIG_SONY_CAM_V4L2)
 static void msm_cci_process_half_q(struct cci_device *cci_dev,
 	enum cci_i2c_master_t master,
 	enum cci_i2c_queue_t queue)
@@ -402,6 +408,7 @@ static void msm_cci_process_half_q(struct cci_device *cci_dev,
 			CCI_QUEUE_START_ADDR);
 	}
 }
+#endif
 
 static int32_t msm_cci_process_full_q(struct cci_device *cci_dev,
 	enum cci_i2c_master_t master,
@@ -599,7 +606,9 @@ static int32_t msm_cci_data_queue(struct cci_device *cci_dev,
 				}
 				continue;
 			}
-			msm_cci_process_half_q(cci_dev,	master, queue);
+#if !defined(CONFIG_SONY_CAM_V4L2)
+			msm_cci_process_half_q(cci_dev, master, queue);
+#endif
 		}
 
 		CDBG("%s cmd_size %d addr 0x%x data 0x%x\n", __func__,
@@ -718,10 +727,18 @@ static int32_t msm_cci_i2c_read(struct v4l2_subdev *sd,
 	enum cci_i2c_queue_t queue = QUEUE_1;
 	struct cci_device *cci_dev = NULL;
 	struct msm_camera_cci_i2c_read_cfg *read_cfg = NULL;
+
 	CDBG("%s line %d\n", __func__, __LINE__);
 	cci_dev = v4l2_get_subdevdata(sd);
 	master = c_ctrl->cci_info->cci_i2c_master;
 	read_cfg = &c_ctrl->cfg.cci_i2c_read_cfg;
+
+	if (master >= MASTER_MAX || master < 0) {
+		pr_err("%s:%d Invalid I2C master %d\n",
+			__func__, __LINE__, master);
+		return -EINVAL;
+	}
+
 	mutex_lock(&cci_dev->cci_master_info[master].mutex_q[queue]);
 
 	/* Set the I2C Frequency */
@@ -947,11 +964,6 @@ static int32_t msm_cci_i2c_write(struct v4l2_subdev *sd,
 	enum cci_i2c_master_t master;
 
 	cci_dev = v4l2_get_subdevdata(sd);
-	if (c_ctrl->cci_info->cci_i2c_master >= MASTER_MAX
-			|| c_ctrl->cci_info->cci_i2c_master < 0) {
-		pr_err("%s:%d Invalid I2C master addr\n", __func__, __LINE__);
-		return -EINVAL;
-	}
 	if (cci_dev->cci_state != CCI_STATE_ENABLED) {
 		pr_err("%s invalid cci state %d\n",
 			__func__, cci_dev->cci_state);
@@ -1443,6 +1455,11 @@ static int32_t msm_cci_write(struct v4l2_subdev *sd,
 		return rc;
 	}
 
+	if (c_ctrl->cci_info->cci_i2c_master >= MASTER_MAX
+			|| c_ctrl->cci_info->cci_i2c_master < 0) {
+		pr_err("%s:%d Invalid I2C master addr\n", __func__, __LINE__);
+		return -EINVAL;
+	}
 	master = c_ctrl->cci_info->cci_i2c_master;
 	cci_master_info = &cci_dev->cci_master_info[master];
 
