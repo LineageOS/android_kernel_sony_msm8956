@@ -9,6 +9,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #define pr_fmt(fmt) "MSM-CPP %s:%d " fmt, __func__, __LINE__
 
@@ -93,6 +98,12 @@ static int msm_cpp_send_frame_to_hardware(struct cpp_device *cpp_dev,
 static int msm_cpp_send_command_to_hardware(struct cpp_device *cpp_dev,
 	uint32_t *cmd_msg, uint32_t payload_size);
 
+#if defined(CONFIG_SONY_CAM_V4L2)
+#define CPP_DBG(fmt, args...)
+#define CPP_LOW(fmt, args...)
+#define ERR_USER_COPY(to)
+#define ERR_COPY_FROM_USER()
+#else
 #if CONFIG_MSM_CPP_DBG
 #define CPP_DBG(fmt, args...) pr_err(fmt, ##args)
 #else
@@ -107,6 +118,7 @@ static int msm_cpp_send_command_to_hardware(struct cpp_device *cpp_dev,
 #define ERR_USER_COPY(to) pr_err("copy %s user\n", \
 			((to) ? "to" : "from"))
 #define ERR_COPY_FROM_USER() ERR_USER_COPY(0)
+#endif
 
 /* CPP bus bandwidth definitions */
 static struct msm_bus_vectors msm_cpp_init_vectors[] = {
@@ -304,10 +316,17 @@ static void cpp_timer_callback(unsigned long data);
 uint8_t induce_error;
 static int msm_cpp_enable_debugfs(struct cpp_device *cpp_dev);
 
+#if defined(CONFIG_SONY_CAM_V4L2)
+static inline void msm_cpp_write(u32 data, void __iomem *cpp_base)
+{
+	writel_relaxed_no_log((data), cpp_base + MSM_CPP_MICRO_FIFO_RX_DATA);
+}
+#else
 static void msm_cpp_write(u32 data, void __iomem *cpp_base)
 {
 	writel_relaxed((data), cpp_base + MSM_CPP_MICRO_FIFO_RX_DATA);
 }
+#endif
 
 static void msm_cpp_clear_timer(struct cpp_device *cpp_dev)
 {
@@ -1794,6 +1813,8 @@ static int msm_cpp_check_buf_type(struct msm_buf_mngr_info *buff_mgr_info,
 			/* More or equal bufs as Input buffer */
 			num_output_bufs = new_frame->batch_info.batch_size;
 		}
+		if (num_output_bufs > MSM_OUTPUT_BUF_CNT)
+			return 0;
 		for (i = 0; i < num_output_bufs; i++) {
 			new_frame->output_buffer_info[i].index =
 				buff_mgr_info->user_buf.buf_idx[i];
@@ -2163,7 +2184,7 @@ static int msm_cpp_cfg_frame(struct cpp_device *cpp_dev,
 	struct msm_buf_mngr_info buff_mgr_info, dup_buff_mgr_info;
 	int32_t in_fd;
 	int32_t num_output_bufs = 1;
-	int32_t stripe_base = 0;
+	uint32_t stripe_base = 0;
 	uint32_t stripe_size;
 	uint8_t tnr_enabled;
 	enum msm_camera_buf_mngr_buf_type buf_type =
@@ -2187,6 +2208,33 @@ static int msm_cpp_cfg_frame(struct cpp_device *cpp_dev,
 	if (cpp_frame_msg[new_frame->msg_len - 1] !=
 		MSM_CPP_MSG_ID_TRAILER) {
 		pr_err("Invalid frame message\n");
+		return -EINVAL;
+	}
+
+	/* Stripe index starts at zero */
+	if ((!new_frame->num_strips) ||
+		(new_frame->first_stripe_index >= new_frame->num_strips) ||
+		(new_frame->last_stripe_index  >= new_frame->num_strips) ||
+		(new_frame->first_stripe_index >
+			new_frame->last_stripe_index)) {
+		pr_err("Invalid frame message, #stripes=%d, stripe indices=[%d,%d]\n",
+			new_frame->num_strips,
+			new_frame->first_stripe_index,
+			new_frame->last_stripe_index);
+		return -EINVAL;
+	}
+
+	if (!stripe_size) {
+		pr_err("Invalid frame message, invalid stripe_size (%d)!\n",
+			stripe_size);
+		return -EINVAL;
+	}
+
+	if ((stripe_base == UINT_MAX) ||
+		(new_frame->num_strips >
+			(UINT_MAX - 1 - stripe_base) / stripe_size)) {
+		pr_err("Invalid frame message, num_strips %d is large\n",
+			new_frame->num_strips);
 		return -EINVAL;
 	}
 
@@ -2383,13 +2431,14 @@ static int msm_cpp_cfg(struct cpp_device *cpp_dev,
 	struct msm_cpp_frame_info_t *frame = NULL;
 	struct msm_cpp_frame_info_t k_frame_info;
 	int32_t rc = 0;
-	int32_t i = 0;
-	int32_t num_buff = sizeof(k_frame_info.output_buffer_info)/
-		sizeof(struct msm_cpp_buffer_info_t);
+	uint32_t i = 0;
+	uint32_t num_buff = sizeof(k_frame_info.output_buffer_info) /
+				sizeof(struct msm_cpp_buffer_info_t);
+
 	if (copy_from_user(&k_frame_info,
 			(void __user *)ioctl_ptr->ioctl_ptr,
 			sizeof(k_frame_info)))
-			return -EFAULT;
+		return -EFAULT;
 
 	frame = msm_cpp_get_frame(ioctl_ptr);
 	if (!frame) {
